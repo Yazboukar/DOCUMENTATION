@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Sector {
+  id          Int                @id @default(autoincrement())
+  name        String
+  slug        String             @unique
+  themeName   String?
+  themeAccent String
+  createdAt   DateTime           @default(now())
+  legalLevels SectorLegalLevel[]
+  users       UserSector[]
+  documents   DocumentSector[]
+}
+
+model LegalLevel {
+  id          Int                @id @default(autoincrement())
+  name        String
+  slug        String             @unique
+  legalOrder  Int                @unique
+  createdAt   DateTime           @default(now())
+  documents   Document[]
+  sectors     SectorLegalLevel[]
+}
+
+model SectorLegalLevel {
+  sectorId      Int
+  legalLevelId  Int
+  isVisible     Boolean @default(true)
+  labelOverride String?
+  orderOverride Int?
+  sector        Sector     @relation(fields: [sectorId], references: [id])
+  legalLevel    LegalLevel @relation(fields: [legalLevelId], references: [id])
+
+  @@id([sectorId, legalLevelId])
+}
+
+model User {
+  id             String        @id @default(cuid())
+  name           String
+  email          String        @unique
+  emailVerified  DateTime?
+  passwordHash   String
+  role           Role
+  isActive       Boolean       @default(true)
+  sectors        UserSector[]
+  createdDocuments Document[]
+  auditLogs      AuditLog[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  accounts       Account[]
+  sessions       Session[]
+}
+
+model UserSector {
+  userId   String
+  sectorId Int
+  user     User   @relation(fields: [userId], references: [id])
+  sector   Sector @relation(fields: [sectorId], references: [id])
+
+  @@id([userId, sectorId])
+}
+
+model Document {
+  id               Int              @id @default(autoincrement())
+  title            String
+  description      String?
+  referenceNumber  String?
+  year             Int?
+  status           DocumentStatus   @default(DRAFT)
+  keywords         String?
+  filePath         String
+  originalFileName String
+  fileSize         Int
+  fileHash         String
+  legalLevelId     Int
+  legalLevel       LegalLevel       @relation(fields: [legalLevelId], references: [id])
+  createdById      String
+  creator          User             @relation(fields: [createdById], references: [id])
+  sectors          DocumentSector[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model DocumentSector {
+  documentId Int
+  sectorId   Int
+  document   Document @relation(fields: [documentId], references: [id])
+  sector     Sector   @relation(fields: [sectorId], references: [id])
+
+  @@id([documentId, sectorId])
+}
+
+model AuditLog {
+  id        Int       @id @default(autoincrement())
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  reason    String?
+  sectorId  Int?
+  createdAt DateTime  @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
